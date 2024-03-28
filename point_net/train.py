@@ -8,13 +8,15 @@ import wandb
 from torch.utils.data import DataLoader
 from torchmetrics.classification import MulticlassMatthewsCorrCoef
 
+from dataset import CombinedDataset
 from point_net import PointNetSegHead
 from point_net_loss import PointNetSegLoss
-from s3dis_dataset import S3DIS
 
 # dataset
-ROOT = r'/home/asakhare/data/datasets/stanford/Stanford3dDataset_v1.2_Reduced_Aligned_Version'
-WEIGHTS_PATH = r'./trained_models/seg_focal_dice_iou_rot/seg_model_89.pth'
+S3DIS_ROOT = r'/home/asakhare/data/datasets/stanford/Stanford3dDataset_v1.2_Reduced_Aligned_Version'
+MATTERPORT_ROOT = r'/home/asakhare/data/datasets/matterport/matterport_3d'
+SCANNET_ROOT = r'/home/asakhare/data/datasets/scannet/scannet_3d'
+WEIGHTS_PATH = r'./trained_models/s3dis/seg_model_167.pth'
 
 # feature selection hyperparameters
 NUM_TRAIN_POINTS = 200000 # train/valid points
@@ -55,16 +57,35 @@ wandb.login(key=wandb_api_key)
 wandb.init(project='PointNet', entity='asakhare')
 
 # get datasets
-s3dis_train = S3DIS(ROOT, area_nums='1-4', npoints=NUM_TRAIN_POINTS, r_prob=0.25)
-s3dis_valid = S3DIS(ROOT, area_nums='5', npoints=NUM_TRAIN_POINTS, r_prob=0.)
-s3dis_test = S3DIS(ROOT, area_nums='6', split='test', npoints=NUM_TEST_POINTS)
+train_dataset = CombinedDataset(s3dis_root=S3DIS_ROOT,
+                                matterport_root=MATTERPORT_ROOT,
+                                scannet_root=SCANNET_ROOT,
+                                s3dis_area_nums='1-4',
+                                npoints=NUM_TRAIN_POINTS,
+                                r_prob=0.25
+                                )
+valid_dataset = CombinedDataset(s3dis_root=S3DIS_ROOT,
+                                matterport_root=MATTERPORT_ROOT,
+                                scannet_root=SCANNET_ROOT,
+                                s3dis_area_nums='5',
+                                npoints=NUM_TRAIN_POINTS,
+                                r_prob=0.
+                                )
+test_dataset = CombinedDataset(s3dis_root=S3DIS_ROOT,
+                               matterport_root=MATTERPORT_ROOT,
+                               scannet_root=SCANNET_ROOT,
+                               s3dis_area_nums='6',
+                               split='test',
+                               npoints=NUM_TEST_POINTS
+                               )
 
 # get dataloaders
-train_dataloader = DataLoader(s3dis_train, batch_size=BATCH_SIZE, shuffle=True)
-valid_dataloader = DataLoader(s3dis_valid, batch_size=BATCH_SIZE, shuffle=True)
-test_dataloader = DataLoader(s3dis_test, batch_size=BATCH_SIZE, shuffle=False)
+train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=True)
+test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 seg_model = PointNetSegHead(num_points=NUM_TRAIN_POINTS, m=NUM_CLASSES)
+seg_model.load_state_dict(torch.load(WEIGHTS_PATH))
 
 points, colors, targets = next(iter(train_dataloader))
 out, _, _ = seg_model(torch.cat((points.transpose(2, 1), colors.transpose(2,1)), dim=1))
@@ -115,8 +136,8 @@ valid_mcc = []
 valid_iou = []
 
 # stuff for training
-num_train_batch = int(np.ceil(len(s3dis_train) / BATCH_SIZE))
-num_valid_batch = int(np.ceil(len(s3dis_valid) / BATCH_SIZE))
+num_train_batch = int(np.ceil(len(train_dataset) / BATCH_SIZE))
+num_valid_batch = int(np.ceil(len(valid_dataset) / BATCH_SIZE))
 
 for epoch in range(1, EPOCHS + 1):
     # place model in training mode

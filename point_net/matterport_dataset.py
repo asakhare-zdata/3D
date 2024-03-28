@@ -1,14 +1,7 @@
-''' Dataset for The aligned, reduced, partitioned S3DIS dataset
-    Provides functionality for train/test on partitioned sets as well
-    as testing on entire spaces via get_random_partitioned_space()
-    '''
-
 import os
-import sys
 from glob import glob
-import random
+
 import numpy as np
-import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
@@ -21,11 +14,11 @@ class Matterport(Dataset):
         self.r_prob = r_prob  # probability of rotation
 
         # get all datapaths
-        self.data_paths = glob(os.path.join(root, '*.pth'), recursive=True)
+        self.data_paths = glob(os.path.join(root, split, '*.pth'), recursive=True)
 
     def __getitem__(self, idx):
         # read data from pth
-        region_data = torch.load(self.data_paths[idx]).numpy()
+        region_data = torch.load(self.data_paths[idx])
         points = region_data[0]  # xyz points
         colors = region_data[1]  # color points
         targets = region_data[2]  # integer categories
