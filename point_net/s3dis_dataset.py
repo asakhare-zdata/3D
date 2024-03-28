@@ -35,14 +35,14 @@ class S3DIS(Dataset):
         # get all datapaths
         self.data_paths = []
         for area in areas:
-            self.data_paths += glob(os.path.join(area, '**\*.hdf5'), 
+            self.data_paths += glob(os.path.join(area, '**/*.pth'),
                                     recursive=True)
 
         # get unique space identifiers (area_##\\spacename_##_)
         self.space_ids = []
         for fp in self.data_paths:
-            area, space = fp.split('\\')[-2:]
-            space_id = '\\'.join([area, '_'.join(space.split('_')[:2])]) + '_'
+            area, space = fp.split('/')[-2:]
+            space_id = '/'.join([area, '_'.join(space.split('_')[:2])]) + '_'
             self.space_ids.append(space_id)
 
         self.space_ids = list(set(self.space_ids))
@@ -50,13 +50,22 @@ class S3DIS(Dataset):
 
     def __getitem__(self, idx):
         # read data from hdf5
-        space_data = pd.read_hdf(self.data_paths[idx], key='space_slice').to_numpy()
+        # space_data = pd.read_hdf(self.data_paths[idx], key='space_slice').to_numpy()
+        space_data = torch.load(self.data_paths[idx]).numpy()
         points = space_data[:, :3] # xyz points
-        targets = space_data[:, 3]    # integer categories
+        colors = space_data[:, 3:6] # color points
+        targets = space_data[:, 6]    # integer categories
+
+        # target_map = 0: ceiling
+        #              1: floor
+        #              2: wall
+        #              >2: clutter
+
+        targets = np.where(targets > 2, 3, targets)
 
         # down sample point cloud
         if self.npoints:
-            points, targets = self.downsample(points, targets)
+            points, colors, targets = self.downsample(points, colors, targets)
 
         # add Gaussian noise to point set if not testing
         if self.split != 'test':
@@ -65,76 +74,79 @@ class S3DIS(Dataset):
 
             # add random rotation to the point cloud with probability
             if np.random.uniform(0, 1) > 1 - self.r_prob:
-                points = self.random_rotate(points)
+                points, colors = self.random_rotate(points, colors)
 
 
         # Normalize Point Cloud to (0, 1)
         points = self.normalize_points(points)
+        colors = self.normalize_points(colors)
 
         # convert to torch
         points = torch.from_numpy(points).type(torch.float32)
+        colors = torch.from_numpy(colors).type(torch.float32)
         targets = torch.from_numpy(targets).type(torch.LongTensor)
 
-        return points, targets
+        return points, colors, targets
         
 
-    def get_random_partitioned_space(self):
-        ''' Obtains a Random space. In this case the batchsize would be
-            the number of partitons that the space was separated into.
-            This is a special function for testing.
-            '''
+    # def get_random_partitioned_space(self):
+    #     ''' Obtains a Random space. In this case the batchsize would be
+    #         the number of partitons that the space was separated into.
+    #         This is a special function for testing.
+    #         '''
+    #
+    #     # get random space id
+    #     idx = random.randint(0, len(self.space_ids) - 1)
+    #     space_id = self.space_ids[idx]
+    #
+    #     # get all filepaths for randomly selected space
+    #     space_paths = []
+    #     for fpath in self.data_paths:
+    #         if space_id in fpath:
+    #             space_paths.append(fpath)
+    #
+    #     # assume npoints is very large if not passed
+    #     if not self.npoints:
+    #         self.npoints = 20000
+    #
+    #     points = np.zeros((len(space_paths), self.npoints, 3))
+    #     targets = np.zeros((len(space_paths), self.npoints))
+    #
+    #     # obtain data
+    #     for i, space_path in enumerate(space_paths):
+    #         space_data = pd.read_hdf(space_path, key='space_slice').to_numpy()
+    #         _points = space_data[:, :3] # xyz points
+    #         _targets = space_data[:, 3] # integer categories
+    #
+    #         # downsample point cloud
+    #         _points, _targets = self.downsample(_points, _targets)
+    #
+    #         # add points and targets to batch arrays
+    #         points[i] = _points
+    #         targets[i] = _targets
+    #
+    #     # convert to torch
+    #     points = torch.from_numpy(points).type(torch.float32)
+    #     targets = torch.from_numpy(targets).type(torch.LongTensor)
+    #
+    #     return points, targets
+    #
 
-        # get random space id
-        idx = random.randint(0, len(self.space_ids) - 1)
-        space_id = self.space_ids[idx]
-
-        # get all filepaths for randomly selected space
-        space_paths = []
-        for fpath in self.data_paths:
-            if space_id in fpath:
-                space_paths.append(fpath)
-        
-        # assume npoints is very large if not passed
-        if not self.npoints:
-            self.npoints = 20000
-
-        points = np.zeros((len(space_paths), self.npoints, 3))
-        targets = np.zeros((len(space_paths), self.npoints))
-
-        # obtain data
-        for i, space_path in enumerate(space_paths):
-            space_data = pd.read_hdf(space_path, key='space_slice').to_numpy()
-            _points = space_data[:, :3] # xyz points
-            _targets = space_data[:, 3] # integer categories
-
-            # downsample point cloud
-            _points, _targets = self.downsample(_points, _targets)
-
-            # add points and targets to batch arrays
-            points[i] = _points
-            targets[i] = _targets
-
-        # convert to torch
-        points = torch.from_numpy(points).type(torch.float32)
-        targets = torch.from_numpy(targets).type(torch.LongTensor)
-
-        return points, targets
-        
-
-    def downsample(self, points, targets):
+    def downsample(self, points, colors, targets):
         if len(points) > self.npoints:
             choice = np.random.choice(len(points), self.npoints, replace=False)
         else:
             # case when there are less points than the desired number
             choice = np.random.choice(len(points), self.npoints, replace=True)
-        points = points[choice, :] 
+        points = points[choice, :]
+        colors = colors[choice, :]
         targets = targets[choice]
 
-        return points, targets
+        return points, colors, targets
 
     
     @staticmethod
-    def random_rotate(points):
+    def random_rotate(points, colors):
         ''' randomly rotates point cloud about vertical axis.
             Code is commented out to rotate about all axes
             '''
@@ -160,7 +172,7 @@ class S3DIS(Dataset):
 
         # rot = np.matmul(rot_x, np.matmul(rot_y, rot_z))
         
-        return np.matmul(points, rot_z)
+        return np.matmul(points, rot_z), np.matmul(colors, rot_z)
 
 
     @staticmethod

@@ -102,11 +102,11 @@ class PointNetBackbone(nn.Module):
         self.local_feat = local_feat
 
         # Spatial Transformer Networks (T-nets)
-        self.tnet1 = Tnet(dim=3, num_points=num_points)
+        self.tnet1 = Tnet(dim=6, num_points=num_points)
         self.tnet2 = Tnet(dim=64, num_points=num_points)
 
         # shared MLP 1
-        self.conv1 = nn.Conv1d(3, 64, kernel_size=1)
+        self.conv1 = nn.Conv1d(6, 64, kernel_size=1)
         self.conv2 = nn.Conv1d(64, 64, kernel_size=1)
 
         # shared MLP 2
