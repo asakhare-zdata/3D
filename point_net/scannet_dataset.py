@@ -43,6 +43,8 @@ class ScanNet(Dataset):
         for original_value, mapped_value in target_map.items():
             mapped_targets[targets == original_value] = mapped_value
 
+        targets = mapped_targets
+
         # down sample point cloud
         if self.npoints:
             points, colors, targets = self.downsample(points, colors, targets)
