@@ -85,7 +85,7 @@ valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=True
 test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 seg_model = PointNetSegHead(num_points=NUM_TRAIN_POINTS, m=NUM_CLASSES)
-seg_model.load_state_dict(torch.load(WEIGHTS_PATH))
+# seg_model.load_state_dict(torch.load(WEIGHTS_PATH))
 
 points, colors, targets = next(iter(train_dataloader))
 out, _, _ = seg_model(torch.cat((points.transpose(2, 1), colors.transpose(2,1)), dim=1))

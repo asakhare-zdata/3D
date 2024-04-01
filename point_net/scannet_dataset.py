@@ -7,14 +7,16 @@ from torch.utils.data import Dataset
 
 
 class ScanNet(Dataset):
-    def __init__(self, root, split='train', npoints=4096, r_prob=0.25):
+    def __init__(self, root=None, split='train', npoints=4096, r_prob=0.25):
         self.root = root
         self.split = split.lower()  # use 'test' in order to bypass augmentations
         self.npoints = npoints  # use  None to sample all the points
         self.r_prob = r_prob  # probability of rotation
 
         # get all datapaths
-        self.data_paths = glob(os.path.join(root, split, '*.pth'), recursive=True)
+        self.data_paths = []
+        if root:
+            self.data_paths = glob(os.path.join(root, split, '*.pth'), recursive=True)
 
     def __getitem__(self, idx):
         # read data from pth

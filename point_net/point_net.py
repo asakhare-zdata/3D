@@ -24,7 +24,7 @@ class Tnet(nn.Module):
         super(Tnet, self).__init__()
 
         # dimensions for transform matrix
-        self.dim = dim 
+        self.dim = dim
 
         self.conv1 = nn.Conv1d(dim, 64, kernel_size=1)
         self.conv2 = nn.Conv1d(64, 128, kernel_size=1)
@@ -41,7 +41,7 @@ class Tnet(nn.Module):
         self.bn5 = nn.BatchNorm1d(256)
 
         self.max_pool = nn.MaxPool1d(kernel_size=num_points)
-        
+
 
     def forward(self, x):
         bs = x.shape[0]
@@ -53,7 +53,7 @@ class Tnet(nn.Module):
 
         # max pool over num points
         x = self.max_pool(x).view(bs, -1)
-        
+
         # pass through MLP
         x = self.bn4(F.relu(self.linear1(x)))
         x = self.bn5(F.relu(self.linear2(x)))
@@ -74,9 +74,9 @@ class Tnet(nn.Module):
 class PointNetBackbone(nn.Module):
     '''
     This is the main portion of Point Net before the classification and segmentation heads.
-    The main function of this network is to obtain the local and global point features, 
+    The main function of this network is to obtain the local and global point features,
     which can then be passed to each of the heads to perform either classification or
-    segmentation. The forward pass through the backbone includes both T-nets and their 
+    segmentation. The forward pass through the backbone includes both T-nets and their
     transformations, the shared MLPs, and the max pool layer to obtain the global features.
 
     The forward function either returns the global or combined (local and global features)
@@ -85,13 +85,13 @@ class PointNetBackbone(nn.Module):
     orthogonal. (i.e. a rigid body transformation is an orthogonal transform and we would like
     to maintain orthogonality in high dimensional space). "An orthogonal transformations preserves
     the lengths of vectors and angles between them"
-    ''' 
+    '''
     def __init__(self, num_points=2500, num_global_feats=1024, local_feat=True):
         ''' Initializers:
                 num_points - number of points in point cloud
-                num_global_feats - number of Global Features for the main 
+                num_global_feats - number of Global Features for the main
                                    Max Pooling layer
-                local_feat - if True, forward() returns the concatenation 
+                local_feat - if True, forward() returns the concatenation
                              of the local and global features
             '''
         super(PointNetBackbone, self).__init__()
@@ -102,7 +102,7 @@ class PointNetBackbone(nn.Module):
         self.local_feat = local_feat
 
         # Spatial Transformer Networks (T-nets)
-        self.tnet1 = Tnet(dim=6, num_points=num_points)
+        self.tnet1 = Tnet(dim=3, num_points=num_points)
         self.tnet2 = Tnet(dim=64, num_points=num_points)
 
         # shared MLP 1
@@ -113,7 +113,7 @@ class PointNetBackbone(nn.Module):
         self.conv3 = nn.Conv1d(64, 64, kernel_size=1)
         self.conv4 = nn.Conv1d(64, 128, kernel_size=1)
         self.conv5 = nn.Conv1d(128, self.num_global_feats, kernel_size=1)
-        
+
         # batch norms for both shared MLPs
         self.bn1 = nn.BatchNorm1d(64)
         self.bn2 = nn.BatchNorm1d(64)
@@ -124,22 +124,26 @@ class PointNetBackbone(nn.Module):
         # max pool to get the global features
         self.max_pool = nn.MaxPool1d(kernel_size=num_points, return_indices=True)
 
-    
-    def forward(self, x):
 
+    def forward(self, x):
         # get batch size
         bs = x.shape[0]
-        
+
+        xyz = x[:, 0:3, :]
+        rgb = x[:, 3:, :]
+
         # pass through first Tnet to get transform matrix
-        A_input = self.tnet1(x)
+        A_input = self.tnet1(xyz)
 
         # perform first transformation across each point in the batch
-        x = torch.bmm(x.transpose(2, 1), A_input).transpose(2, 1)
+        xyz = torch.bmm(xyz.transpose(2, 1), A_input).transpose(2, 1)
+
+        x = torch.cat([xyz, rgb], dim=1)
 
         # pass through first shared MLP
         x = self.bn1(F.relu(self.conv1(x)))
         x = self.bn2(F.relu(self.conv2(x)))
-        
+
         # get feature transform
         A_feat = self.tnet2(x)
 
@@ -160,8 +164,8 @@ class PointNetBackbone(nn.Module):
         critical_indexes = critical_indexes.view(bs, -1)
 
         if self.local_feat:
-            features = torch.cat((local_features, 
-                                  global_features.unsqueeze(-1).repeat(1, 1, self.num_points)), 
+            features = torch.cat((local_features,
+                                  global_features.unsqueeze(-1).repeat(1, 1, self.num_points)),
                                   dim=1)
 
             return features, critical_indexes, A_feat
