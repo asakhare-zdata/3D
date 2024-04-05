@@ -28,19 +28,23 @@ class Matterport(Dataset):
         # target_map = 20: ceiling
         #              0: wall
         #              1: floor
+        #              7: door
+        #              8: window
         #              All else: clutter
 
         # Need to map to S3DIS
         # target_map = 0: ceiling
         #              1: floor
         #              2: wall
-        #              >2: clutter
+        #              3: window
+        #              4: door
+        #              5: clutter
 
         # Create a mapping dictionary
-        target_map = {0: 2, 20: 0, 1: 1}
+        target_map = {0: 2, 20: 0, 1: 1, 7: 4, 8: 3}
 
-        # Initialize targets with a default value of 3
-        mapped_targets = np.full_like(targets, fill_value=3)
+        # Initialize targets with a default value of 5
+        mapped_targets = np.full_like(targets, fill_value=5)
 
         # Update values according to the mapping dictionary
         for original_value, mapped_value in target_map.items():

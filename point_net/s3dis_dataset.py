@@ -59,9 +59,12 @@ class S3DIS(Dataset):
         # target_map = 0: ceiling
         #              1: floor
         #              2: wall
-        #              >2: clutter
+        #              3: window
+        #              4: door
+        #              5: clutter
 
-        targets = np.where(targets > 2, 3, targets)
+        # converting table (5), sofa (6), chair (7) labels to clutter (5) labels
+        targets = np.where(targets > 4, 5, targets)
 
         # down sample point cloud
         if self.npoints:

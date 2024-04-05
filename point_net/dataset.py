@@ -4,16 +4,18 @@ from matterport_dataset import Matterport
 from s3dis_dataset import S3DIS
 from scannet_dataset import ScanNet
 
+
 class CombinedDataset(Dataset):
     def __init__(self,
-                 s3dis_root,
-                 matterport_root,
-                 scannet_root,
                  s3dis_area_nums,
                  split='train',
                  npoints=4096,
-                 r_prob=0.25
+                 r_prob=0.25,
+                 s3dis_root=None,
+                 matterport_root=None,
+                 scannet_root=None,
                  ):
+
         self.s3dis_dataset = S3DIS(root=s3dis_root, area_nums=s3dis_area_nums, split=split, npoints=npoints, r_prob=r_prob)
         self.matterport_dataset = Matterport(root=matterport_root, split=split, npoints=npoints, r_prob=r_prob)
         self.scannet_dataset = ScanNet(root=scannet_root, split=split, npoints=npoints, r_prob=r_prob)

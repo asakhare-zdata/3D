@@ -132,3 +132,4 @@ dmypy.json
 *.idea
 
 /point_net/trained_models/*
+/randla_net/trained_models/*
